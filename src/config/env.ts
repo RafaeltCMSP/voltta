@@ -20,6 +20,10 @@ const schema = z.object({
     .transform((v) => v === 'true'),
   MONITOR_INTERVAL_SECONDS: z.coerce.number().default(60),
 
+  // Painel web (/dashboard). Se definido, exige ?token=... para acessar (recomendado:
+  // há dados de cliente). Vazio = painel aberto (use só em ambiente protegido).
+  DASHBOARD_TOKEN: z.string().optional(),
+
   LI_USE_MOCK: z
     .enum(['true', 'false'])
     .default('true')
