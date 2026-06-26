@@ -109,6 +109,10 @@ loja e o envio passa a funcionar.
 cp .env.example .env     # preencha LI_API_KEY e LI_APPLICATION_KEY
 docker compose up -d --build
 ```
+> O serviço `app` usa `expose` (sem porta publicada) para não conflitar no EasyPanel.
+> Para acessar o `/health` do host localmente, adicione um mapeamento de porta ao app:
+> `docker compose run --service-ports app` ou inclua `ports: ["3333:3333"]` temporariamente.
+
 Para desenvolvimento com hot reload, suba só o banco/redis e rode o app no host:
 ```bash
 docker compose -f docker-compose.dev.yml up -d
