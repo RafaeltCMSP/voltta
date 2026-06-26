@@ -3,7 +3,9 @@
 // e sua própria instância da Evolution API.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" para o dev local; o target musl/openssl-3 para o container Alpine.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

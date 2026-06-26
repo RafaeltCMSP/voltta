@@ -2,6 +2,9 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+# openssl: o Prisma precisa dele no Alpine para detectar a libssl e usar o engine certo.
+RUN apk add --no-cache openssl
+
 # Instala TODAS as deps (inclui dev: typescript, tsx) para compilar.
 COPY package*.json ./
 RUN npm ci
@@ -17,6 +20,9 @@ RUN npm run build
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+
+# openssl: necessário em runtime para o query engine do Prisma (db push + queries).
+RUN apk add --no-cache openssl
 
 # Só dependências de produção (inclui o CLI `prisma` p/ o db push no boot).
 COPY package*.json ./
