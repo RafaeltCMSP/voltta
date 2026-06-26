@@ -52,7 +52,7 @@ class RealLiClient implements LiClient {
     if (res.statusCode >= 400) {
       const body = await res.body.text();
       logger.error({ url, status: res.statusCode, body }, 'Erro na API da Loja Integrada');
-      throw new Error(`LI respondeu ${res.statusCode}`);
+      throw new Error(`LI respondeu ${res.statusCode}: ${body.slice(0, 200)}`);
     }
     return (await res.body.json()) as Record<string, unknown>;
   }
@@ -100,7 +100,8 @@ class RealLiClient implements LiClient {
   }
 
   async listOrders({ offset, limit }: { offset: number; limit: number }): Promise<LiOrderSummary[]> {
-    const data = await this.get(`pedido/search?limit=${limit}&offset=${offset}&order_by=-data_criacao`);
+    const lim = Math.min(Math.max(1, limit), 50); // a LI aceita no máximo 50
+    const data = await this.get(`pedido/search?limit=${lim}&offset=${offset}&order_by=-data_criacao`);
     const objs = (data?.['objects'] as Record<string, unknown>[]) ?? [];
     return objs.map((p) => ({
       numero: String(p['numero']),

@@ -127,7 +127,7 @@ export function dashboardHtml(): string {
 </div>
 <script>
   var token = new URLSearchParams(location.search).get('token') || '';
-  var cfg = {}; var evoOk = false; var importTimer = null;
+  var cfg = {}; var evoOk = false; var importTimer = null; var statsTimer = null;
   function url(p){ return p + (token ? (p.indexOf('?')>=0?'&':'?') + 'token=' + encodeURIComponent(token) : ''); }
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -140,7 +140,7 @@ export function dashboardHtml(): string {
 
   function loadStats(){
     return fetch(url('/api/dashboard')).then(function(r){
-      if (r.status===401) throw new Error('Acesso negado. Abra com ?token=SEU_TOKEN');
+      if (r.status===401){ showLogin(); throw new Error('__auth__'); }
       if (!r.ok) throw new Error('Erro '+r.status); return r.json();
     }).then(function(d){
       cfg = d.config; evoOk = d.store && d.store.evolutionConfigured;
@@ -264,9 +264,29 @@ export function dashboardHtml(): string {
     }, 1200);
   }
 
-  function loadAll(){ loadStats().then(loadOrders).catch(function(e){ showMsg(esc(e.message),'err'); }); }
+  function showLogin(){
+    if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+    if (importTimer) { clearInterval(importTimer); importTimer = null; }
+    document.querySelector('.wrap').innerHTML =
+      '<div style="max-width:380px;margin:64px auto">'+
+      '<div class="card" style="text-align:center">'+
+      '<h2 style="margin:0 0 12px;color:var(--txt);letter-spacing:0">🔒 Área protegida</h2>'+
+      '<p class="muted" style="margin:0 0 16px">Cole seu token de acesso para entrar no painel.</p>'+
+      '<input id="tk" type="password" placeholder="token" style="width:100%;margin-bottom:12px">'+
+      '<button onclick="doLogin()" style="width:100%">Entrar</button>'+
+      (token ? '<p class="muted" style="margin:14px 0 0;font-size:12px">Token informado é inválido.</p>' : '')+
+      '</div></div>';
+    var el = document.getElementById('tk'); if (el) el.focus();
+  }
+  function doLogin(){
+    var v = (document.getElementById('tk').value || '').trim();
+    if (v) location.href = location.pathname + '?token=' + encodeURIComponent(v);
+  }
+
+  function loadAll(){ loadStats().then(loadOrders).catch(function(e){
+    if (e.message !== '__auth__') showMsg(esc(e.message),'err'); }); }
   loadAll();
-  setInterval(loadStats, 15000);
+  statsTimer = setInterval(function(){ loadStats().catch(function(){}); }, 15000);
 </script>
 </body>
 </html>`;

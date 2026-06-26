@@ -65,8 +65,8 @@ async function runImport(year: number): Promise<void> {
   if (!store) throw new Error('Nenhuma loja configurada');
   const li = makeLiClient({ liApiKey: store.liApiKey, liApplicationKey: store.liApplicationKey });
 
-  const LIMIT = 100;
-  const MAX_PAGES = 500; // trava de segurança (até 50k pedidos)
+  const LIMIT = 50; // a LI aceita no máximo 50 por página
+  const MAX_PAGES = 800; // trava de segurança (até 40k pedidos)
   let maxNumero = store.lastSeenOrderNumber;
 
   for (let page = 0; page < MAX_PAGES; page++) {
