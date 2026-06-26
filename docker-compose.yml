@@ -1,33 +1,81 @@
-# Sobe o Postgres e o Redis que o Voltta precisa.
-# A Evolution API roda separada (você já tem a sua).
-#   docker compose up -d
+# Stack completa do Voltta: App + Postgres + Redis.
+#
+# É este arquivo que o EasyPanel usa no modo "Compose" — sobe tudo de uma vez.
+# Também roda local com:  docker compose up -d --build
+#
+# Você só precisa definir as CHAVES (LI e Evolution) — o resto tem padrão e o app
+# se conecta ao Postgres/Redis internos sozinho. No EasyPanel, defina as variáveis
+# na aba Environment do serviço; localmente, copie .env.example para .env.
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: voltta-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: voltta
-      POSTGRES_PASSWORD: voltta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voltta}
       POSTGRES_DB: voltta
-    ports:
-      - "5432:5432"
     volumes:
       - voltta_pg:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U voltta"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: voltta-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - voltta_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      # Conexões internas — apontam para os serviços acima, não precisa mexer.
+      DATABASE_URL: postgresql://voltta:${POSTGRES_PASSWORD:-voltta}@postgres:5432/voltta?schema=public
+      REDIS_URL: redis://redis:6379
+      # Lógica de recuperação
+      RECOVERY_DELAY_MINUTES: ${RECOVERY_DELAY_MINUTES:-45}
+      RECOVERY_MIN_YEAR: ${RECOVERY_MIN_YEAR:-2026}
+      # Monitor (polling da LI)
+      MONITOR_ENABLED: ${MONITOR_ENABLED:-true}
+      MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-60}
+      # Loja Integrada
+      LI_USE_MOCK: ${LI_USE_MOCK:-false}
+      LI_API_BASE_URL: ${LI_API_BASE_URL:-https://api.awsli.com.br/api/v1}
+      LI_WEBHOOK_SECRET: ${LI_WEBHOOK_SECRET:-troque-este-segredo}
+      # Loja padrão (preencha as chaves) ↓
+      STORE_ID: ${STORE_ID:-principal}
+      STORE_NAME: ${STORE_NAME:-Minha Loja}
+      LI_API_KEY: ${LI_API_KEY:-}
+      LI_APPLICATION_KEY: ${LI_APPLICATION_KEY:-}
+      # Evolution API (WhatsApp) — pode deixar vazio agora
+      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+    ports:
+      - "3333:3333"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3333/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
 volumes:
   voltta_pg:

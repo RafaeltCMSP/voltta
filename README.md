@@ -32,14 +32,17 @@ Loja Integrada  ──webhook──►  Voltta  ──agenda (BullMQ)──►  
 
 ```bash
 npm install
-cp .env.example .env          # ajuste se precisar
-docker compose up -d          # sobe postgres + redis
+cp .env.example .env                         # ajuste se precisar
+docker compose -f docker-compose.dev.yml up -d   # sobe postgres + redis (dev)
 
 npm run db:push               # cria as tabelas
 npm run db:seed               # cria a "loja-demo"
 
-npm run dev                   # sobe o servidor + worker
+npm run dev                   # sobe o servidor + worker + monitor
 ```
+
+> Para subir **a stack inteira** (app + banco + redis) num comando só:
+> `docker compose up -d --build`. É o mesmo `docker-compose.yml` que o EasyPanel usa.
 
 ## Testar o fluxo (com mock, sem chaves)
 

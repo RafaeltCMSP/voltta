@@ -1,0 +1,33 @@
+# Dev local: sobe só Postgres + Redis. O app roda no host com `npm run dev` (hot reload).
+#   docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: voltta-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: voltta
+      POSTGRES_PASSWORD: voltta
+      POSTGRES_DB: voltta
+    ports:
+      - "5432:5432"
+    volumes:
+      - voltta_pg_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voltta"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: voltta-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - voltta_redis_dev:/data
+
+volumes:
+  voltta_pg_dev:
+  voltta_redis_dev:
