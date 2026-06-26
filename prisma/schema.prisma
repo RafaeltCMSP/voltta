@@ -1,0 +1,95 @@
+// Voltta — schema multi-loja.
+// Cada Store é um cliente do SaaS, com suas próprias chaves da Loja Integrada
+// e sua própria instância da Evolution API.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+
+  // Credenciais da Loja Integrada (por loja)
+  liApiKey         String // "Chave de API" — identifica a loja
+  liApplicationKey String // "Chave de Aplicação" — identifica o integrador
+
+  // Evolution API (por loja)
+  evolutionBaseUrl  String // ex: https://evo.seudominio.com
+  evolutionApiKey   String // apikey global ou da instância
+  evolutionInstance String // nome da instância (número conectado)
+
+  // Mensagem de recuperação (template). Variáveis: {{nome}}, {{produto}}, {{valor}}, {{loja}}
+  messageTemplate String @default("Oi {{nome}}! 👋 Vi que você estava levando *{{produto}}* lá na {{loja}} mas o pagamento não foi concluído. Posso te ajudar a finalizar? 😊")
+
+  // Quantos minutos esperar antes de disparar (override do .env, por loja)
+  recoveryDelayMinutes Int @default(45)
+
+  // Marcador do monitor de polling: maior número de pedido já varrido nesta loja.
+  // Evita reprocessar o histórico; só pedidos com numero > este são considerados novos.
+  lastSeenOrderNumber Int @default(0)
+
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum OrderStatus {
+  AWAITING_PAYMENT // pedido criado, aguardando pagamento (PIX/boleto gerado)
+  PAID // pagamento confirmado — não recuperar
+  CANCELED // cancelado
+  UNKNOWN
+}
+
+enum RecoveryStatus {
+  PENDING // detectado, job agendado, ainda no período de espera
+  SKIPPED_PAID // cliente pagou antes do disparo
+  SENT // mensagem de recuperação enviada
+  FAILED // falha ao enviar
+}
+
+model Order {
+  id      String @id @default(cuid())
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId String
+
+  // Identificador do pedido na Loja Integrada
+  liOrderId String
+
+  status         OrderStatus    @default(AWAITING_PAYMENT)
+  recoveryStatus RecoveryStatus @default(PENDING)
+
+  // Dados do cliente (para o remarketing)
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+
+  // Produto/valor — para personalizar a mensagem
+  productSummary String?
+  totalAmount    Decimal? @db.Decimal(12, 2)
+
+  messages  RecoveryMessage[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([storeId, liOrderId])
+  @@index([recoveryStatus])
+}
+
+model RecoveryMessage {
+  id      String @id @default(cuid())
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId String
+
+  channel   String   @default("whatsapp")
+  body      String
+  success   Boolean  @default(false)
+  error     String?
+  sentAt    DateTime @default(now())
+}
