@@ -23,6 +23,14 @@ export interface LiOrderRef {
   placedAt?: string;
 }
 
+// Resumo de pedido para o import por período (sem resolver o cliente — leve/rápido).
+export interface LiOrderSummary {
+  numero: string;
+  paymentState: LiPaymentState;
+  totalAmount?: number;
+  placedAt?: string;
+}
+
 // Contrato comum entre client real e mock.
 export interface LiClient {
   /** Busca o pedido na Loja Integrada e devolve o estado atual normalizado. */
@@ -36,4 +44,7 @@ export interface LiClient {
     sinceNumber: number,
     opts?: { maxPages?: number },
   ): Promise<{ orders: LiOrderRef[]; maxNumber: number }>;
+
+  /** Uma página de pedidos (mais recentes primeiro) para o import por período. */
+  listOrders(opts: { offset: number; limit: number }): Promise<LiOrderSummary[]>;
 }

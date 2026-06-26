@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { OrderStatus, RecoveryStatus, Prisma } from '@prisma/client';
 import { env } from '../../config/env.js';
 import { prisma } from '../../lib/prisma.js';
 import { dashboardHtml } from './dashboard.page.js';
+import { startImport, getImportState, enqueueCampaign } from '../campaign/campaign.js';
 
 /** Confere o token, se DASHBOARD_TOKEN estiver configurado. */
 function checkToken(req: FastifyRequest): boolean {
@@ -61,7 +63,13 @@ export async function dashboardRoutes(app: FastifyInstance) {
             recoveryDelayMinutes: store.recoveryDelayMinutes,
           }
         : null,
-      config: { mock: env.LI_USE_MOCK, monitorEnabled: env.MONITOR_ENABLED, minYear: env.RECOVERY_MIN_YEAR },
+      config: {
+        mock: env.LI_USE_MOCK,
+        monitorEnabled: env.MONITOR_ENABLED,
+        minYear: env.RECOVERY_MIN_YEAR,
+        sendMinIntervalSeconds: env.SEND_MIN_INTERVAL_SECONDS,
+        sendDailyCap: env.SEND_DAILY_CAP,
+      },
       stats: {
         totalOrders,
         status: {
@@ -96,5 +104,68 @@ export async function dashboardRoutes(app: FastifyInstance) {
         body: m.body,
       })),
     };
+  });
+
+  // Lista de pedidos com filtros (para a tabela + seleção de envio).
+  app.get('/api/orders', async (req, reply) => {
+    if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
+    const q = req.query as { status?: string; recovery?: string; take?: string };
+
+    const where: Prisma.OrderWhereInput = {};
+    const statuses: OrderStatus[] = ['AWAITING_PAYMENT', 'PAID', 'CANCELED', 'UNKNOWN'];
+    const recoveries: RecoveryStatus[] = ['PENDING', 'SENT', 'SKIPPED_PAID', 'FAILED'];
+    if (q.status && (statuses as string[]).includes(q.status)) where.status = q.status as OrderStatus;
+    if (q.recovery && (recoveries as string[]).includes(q.recovery))
+      where.recoveryStatus = q.recovery as RecoveryStatus;
+
+    const take = Math.min(Number(q.take) || 200, 500);
+    const orders = await prisma.order.findMany({ where, orderBy: { placedAt: 'desc' }, take });
+
+    return {
+      total: orders.length,
+      orders: orders.map((o) => ({
+        id: o.id,
+        liOrderId: o.liOrderId,
+        status: o.status,
+        recoveryStatus: o.recoveryStatus,
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        totalAmount: o.totalAmount ? Number(o.totalAmount) : null,
+        placedAt: o.placedAt ? o.placedAt.toISOString() : null,
+      })),
+    };
+  });
+
+  // Inicia o import por período (background).
+  app.post('/api/import', async (req, reply) => {
+    if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
+    const body = (req.body ?? {}) as { year?: number };
+    const year = Number(body.year) || env.RECOVERY_MIN_YEAR;
+    const state = startImport(year);
+    return { ok: true, state };
+  });
+
+  // Progresso do import.
+  app.get('/api/import/status', async (req, reply) => {
+    if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
+    return { state: getImportState() };
+  });
+
+  // Enfileira envio (com proteção anti-bloqueio). Bloqueia se a Evolution não estiver pronta.
+  app.post('/api/orders/send', async (req, reply) => {
+    if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
+    const body = (req.body ?? {}) as { orderIds?: string[] };
+    const ids = Array.isArray(body.orderIds) ? body.orderIds.filter((x) => typeof x === 'string') : [];
+    if (!ids.length) return reply.status(400).send({ error: 'nenhum pedido selecionado' });
+
+    const result = await enqueueCampaign(ids);
+    if (!result.evolutionConfigured) {
+      return reply.status(400).send({
+        error: 'Evolution não configurada — configure EVOLUTION_* antes de enviar.',
+        ...result,
+        queued: 0,
+      });
+    }
+    return { ok: true, ...result };
   });
 }

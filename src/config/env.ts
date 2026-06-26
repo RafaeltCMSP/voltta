@@ -24,6 +24,12 @@ const schema = z.object({
   // há dados de cliente). Vazio = painel aberto (use só em ambiente protegido).
   DASHBOARD_TOKEN: z.string().optional(),
 
+  // ───────── Anti-bloqueio do WhatsApp (Evolution) ─────────
+  // Intervalo MÍNIMO entre dois envios (ritmo lento p/ não derrubar o número).
+  SEND_MIN_INTERVAL_SECONDS: z.coerce.number().default(90),
+  // Teto de mensagens enviadas por dia (proteção contra ban por volume).
+  SEND_DAILY_CAP: z.coerce.number().default(50),
+
   LI_USE_MOCK: z
     .enum(['true', 'false'])
     .default('true')

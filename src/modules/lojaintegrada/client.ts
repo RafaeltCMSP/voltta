@@ -1,11 +1,20 @@
 import { request } from 'undici';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
-import type { LiClient, LiOrder, LiOrderRef, LiPaymentState } from './types.js';
+import type { LiClient, LiOrder, LiOrderRef, LiOrderSummary, LiPaymentState } from './types.js';
 
 interface StoreCredentials {
   liApiKey: string;
   liApplicationKey: string;
+}
+
+/** Deriva o estado de pagamento a partir do objeto `situacao` da LI. */
+function paymentStateFromSituacao(sit: Record<string, unknown> | undefined): LiPaymentState {
+  if (!sit) return 'unknown';
+  if (sit['cancelado']) return 'canceled';
+  if (sit['aprovado']) return 'paid';
+  if (sit['codigo']) return 'awaiting_payment'; // não aprovado e não cancelado
+  return 'unknown';
 }
 
 /**
@@ -81,8 +90,7 @@ class RealLiClient implements LiClient {
           reachedOld = true; // ordenado por data desc → daqui pra frente é tudo antigo
           continue;
         }
-        const sit = (p['situacao'] as Record<string, unknown>) ?? {};
-        const awaiting = !sit['aprovado'] && !sit['cancelado'] && !!sit['codigo'];
+        const awaiting = paymentStateFromSituacao(p['situacao'] as Record<string, unknown>) === 'awaiting_payment';
         orders.push({ numero: String(p['numero']), awaiting, placedAt: p['data_criacao'] as string });
       }
       if (reachedOld) break;
@@ -91,17 +99,21 @@ class RealLiClient implements LiClient {
     return { orders, maxNumber };
   }
 
+  async listOrders({ offset, limit }: { offset: number; limit: number }): Promise<LiOrderSummary[]> {
+    const data = await this.get(`pedido/search?limit=${limit}&offset=${offset}&order_by=-data_criacao`);
+    const objs = (data?.['objects'] as Record<string, unknown>[]) ?? [];
+    return objs.map((p) => ({
+      numero: String(p['numero']),
+      paymentState: paymentStateFromSituacao(p['situacao'] as Record<string, unknown>),
+      totalAmount: p['valor_total'] ? Number(p['valor_total']) : undefined,
+      placedAt: p['data_criacao'] as string,
+    }));
+  }
+
   /** Traduz o JSON cru da LI para o nosso formato normalizado. */
   private async normalize(liOrderId: string, raw: Record<string, unknown>): Promise<LiOrder> {
     // Situação vem como objeto: { codigo, aprovado, cancelado, final, ... }
-    const sit = (raw['situacao'] as Record<string, unknown>) ?? {};
-    const paymentState: LiPaymentState = sit['cancelado']
-      ? 'canceled'
-      : sit['aprovado']
-        ? 'paid'
-        : sit['codigo'] // não-aprovado e não-cancelado = ainda aguardando (aguardando_pagamento, em_analise, efetuado)
-          ? 'awaiting_payment'
-          : 'unknown';
+    const paymentState = paymentStateFromSituacao(raw['situacao'] as Record<string, unknown>);
 
     // Cliente vem como link (ex: "/api/v1/cliente/123") — seguimos para pegar o telefone.
     let customer: LiOrder['customer'] = {};
@@ -180,6 +192,10 @@ class MockLiClient implements LiClient {
   // No mock não há listagem real — o fluxo de teste usa o webhook (npm run simulate).
   async listOrdersSince(): Promise<{ orders: LiOrderRef[]; maxNumber: number }> {
     return { orders: [], maxNumber: 0 };
+  }
+
+  async listOrders(): Promise<LiOrderSummary[]> {
+    return [];
   }
 }
 

@@ -67,6 +67,9 @@ model Order {
   status         OrderStatus    @default(AWAITING_PAYMENT)
   recoveryStatus RecoveryStatus @default(PENDING)
 
+  // Data de criação do pedido na LI (diferente de createdAt, que é quando capturamos)
+  placedAt DateTime?
+
   // Dados do cliente (para o remarketing)
   customerName  String?
   customerPhone String?

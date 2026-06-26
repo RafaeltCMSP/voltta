@@ -16,6 +16,9 @@ export const RECOVERY_QUEUE = 'recovery';
 
 export interface RecoveryJobData {
   orderId: string;
+  // 'campaign' = disparo manual pelo painel (win-back): envia mesmo se cancelado.
+  // (Pedido PAGO nunca recebe mensagem, em qualquer modo.)
+  mode?: 'campaign';
 }
 
 export const recoveryQueue = new Queue<RecoveryJobData, void, string>(RECOVERY_QUEUE, { connection });

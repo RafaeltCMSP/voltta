@@ -61,6 +61,7 @@ export async function handleOrderEvent(storeId: string, liOrderId: string): Prom
       customerEmail: order.customer.email,
       productSummary: order.productSummary,
       totalAmount: order.totalAmount,
+      placedAt: order.placedAt ? new Date(order.placedAt) : undefined,
     },
     create: {
       storeId,
@@ -71,6 +72,7 @@ export async function handleOrderEvent(storeId: string, liOrderId: string): Prom
       customerEmail: order.customer.email,
       productSummary: order.productSummary,
       totalAmount: order.totalAmount,
+      placedAt: order.placedAt ? new Date(order.placedAt) : undefined,
     },
   });
 
