@@ -64,10 +64,17 @@ services:
       STORE_NAME: ${STORE_NAME:-Minha Loja}
       LI_API_KEY: ${LI_API_KEY:-}
       LI_APPLICATION_KEY: ${LI_APPLICATION_KEY:-}
+      STORE_MESSAGE_TEMPLATE: ${STORE_MESSAGE_TEMPLATE:-}
       # Evolution API (WhatsApp) — pode deixar vazio agora
       EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+      # Painel web (token de acesso)
+      DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:-}
+      # Anti-bloqueio do WhatsApp
+      SEND_MIN_INTERVAL_SECONDS: ${SEND_MIN_INTERVAL_SECONDS:-90}
+      SEND_DAILY_CAP: ${SEND_DAILY_CAP:-50}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3333}
     # Sem `ports:` publicados — no EasyPanel o roteamento é feito por Domínio
     # apontando para este serviço na porta 3333 (evita conflito de portas no host).
     # `expose` deixa a porta acessível internamente (entre serviços / proxy do EasyPanel).
