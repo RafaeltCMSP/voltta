@@ -94,7 +94,7 @@ export async function handleOrderEvent(storeId: string, liOrderId: string): Prom
       { orderId: saved.id },
       {
         delay: delayMs,
-        jobId: `recover:${saved.id}`, // idempotente: não agenda duas vezes o mesmo pedido
+        jobId: `recover-${saved.id}`, // idempotente (sem ':', proibido em jobId do BullMQ)
         removeOnComplete: true,
         removeOnFail: 100,
       },

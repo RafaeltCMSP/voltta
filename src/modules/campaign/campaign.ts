@@ -166,7 +166,7 @@ export async function enqueueCampaign(orderIds: string[]): Promise<EnqueueResult
       'recover',
       { orderId, mode: 'campaign' },
       {
-        jobId: `campaign:${orderId}:${startOfDay.getTime()}`,
+        jobId: `campaign-${orderId}-${startOfDay.getTime()}`,
         delay: i * 1000, // pequeno escalonamento; o ritmo real é do limiter
         removeOnComplete: true,
         removeOnFail: 100,
