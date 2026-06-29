@@ -194,14 +194,15 @@ export function dashboardHtml(): string {
           '<td><input type="checkbox" class="rowchk" value="'+esc(o.id)+'"'+
             (o.status==='PAID'?' disabled title="já pago"':'')+' onchange="updateSelInfo()"></td>'+
           '<td>#'+esc(o.liOrderId)+'</td>'+
-          '<td>'+esc(o.customerName||'—')+'<div class="muted">'+esc(o.customerPhone||'(contato ao enviar)')+'</div></td>'+
+          '<td>'+esc(o.customerName||'—')+'<div class="muted">'+esc(o.customerPhone||'(sem telefone)')+'</div></td>'+
+          '<td>'+esc(o.productSummary||'—')+'</td>'+
           '<td>'+money(o.totalAmount)+'</td>'+
           '<td><span class="pill s-'+esc(o.status)+'">'+esc(o.status)+'</span></td>'+
           '<td><span class="pill r-'+esc(o.recoveryStatus)+'">'+esc(o.recoveryStatus)+'</span></td>'+
           '<td class="muted">'+dt(o.placedAt)+'</td></tr>'; }).join('');
         document.getElementById('ordersWrap').innerHTML =
           '<table><thead><tr><th><input type="checkbox" id="chkAll" onchange="toggleAll(this)"></th>'+
-          '<th>Pedido</th><th>Cliente</th><th>Valor</th><th>Situação</th><th>Recuperação</th><th>Data</th>'+
+          '<th>Pedido</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>Situação</th><th>Recuperação</th><th>Data</th>'+
           '</tr></thead><tbody>'+rows+'</tbody></table>';
         updateSelInfo();
       });

@@ -83,20 +83,29 @@ async function runImport(year: number): Promise<void> {
         continue;
       }
 
+      // Enriquece com nome/telefone/email/produto (1 chamada extra por pedido).
+      // Se falhar, cai no básico (status/valor/data) para não perder o pedido.
+      let full = null;
+      try {
+        full = await li.getOrder(o.numero);
+      } catch (err) {
+        logger.warn({ err, numero: o.numero }, 'Falha ao enriquecer pedido no import');
+      }
+
+      const data = {
+        status: toOrderStatus(full?.paymentState ?? o.paymentState),
+        totalAmount: full?.totalAmount ?? o.totalAmount ?? undefined,
+        placedAt: (full?.placedAt ?? o.placedAt) ? new Date(full?.placedAt ?? o.placedAt!) : undefined,
+        customerName: full?.customer.name ?? undefined,
+        customerPhone: full?.customer.phone ?? undefined,
+        customerEmail: full?.customer.email ?? undefined,
+        productSummary: full?.productSummary ?? undefined,
+      };
+
       await prisma.order.upsert({
         where: { storeId_liOrderId: { storeId: store.id, liOrderId: o.numero } },
-        update: {
-          status: toOrderStatus(o.paymentState),
-          totalAmount: o.totalAmount ?? undefined,
-          placedAt: o.placedAt ? new Date(o.placedAt) : undefined,
-        },
-        create: {
-          storeId: store.id,
-          liOrderId: o.numero,
-          status: toOrderStatus(o.paymentState),
-          totalAmount: o.totalAmount ?? undefined,
-          placedAt: o.placedAt ? new Date(o.placedAt) : undefined,
-        },
+        update: data,
+        create: { storeId: store.id, liOrderId: o.numero, ...data },
       });
       if (importState) importState.imported++;
       const n = Number(o.numero);

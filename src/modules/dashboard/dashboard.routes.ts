@@ -130,6 +130,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
         recoveryStatus: o.recoveryStatus,
         customerName: o.customerName,
         customerPhone: o.customerPhone,
+        customerEmail: o.customerEmail,
+        productSummary: o.productSummary,
         totalAmount: o.totalAmount ? Number(o.totalAmount) : null,
         placedAt: o.placedAt ? o.placedAt.toISOString() : null,
       })),
