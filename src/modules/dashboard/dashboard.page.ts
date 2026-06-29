@@ -132,7 +132,7 @@ export function dashboardHtml(): string {
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function money(n){ return n==null?'—':n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
-  function dt(s){ try { return s?new Date(s).toLocaleString('pt-BR'):'—'; } catch(e){ return s; } }
+  function dt(s){ try { return s?new Date(s).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—'; } catch(e){ return s; } }
   function card(k,v,small){ return '<div class="card"><div class="k">'+k+'</div><div class="v'+
     (small?' small':'')+'">'+v+'</div></div>'; }
   function showMsg(html,kind){ document.getElementById('msg').innerHTML =

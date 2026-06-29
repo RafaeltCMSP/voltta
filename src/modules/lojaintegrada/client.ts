@@ -8,6 +8,20 @@ interface StoreCredentials {
   liApplicationKey: string;
 }
 
+/**
+ * A LI envia datas SEM fuso (ex: "2026-06-26T10:33:26.009033"), que na verdade
+ * estão em horário de Brasília (UTC-3). Convertemos para ISO/UTC correto aqui,
+ * para que o banco guarde o instante certo e a exibição não fique 3h defasada.
+ */
+function liDateToISO(s?: string): string | undefined {
+  if (!s) return undefined;
+  let str = s.trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1'); // fração -> 3 casas
+  const hasTz = /[zZ]$|[+-]\d\d:?\d\d$/.test(str);
+  if (!hasTz) str += '-03:00'; // horário de Brasília
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 /** Deriva o estado de pagamento a partir do objeto `situacao` da LI. */
 function paymentStateFromSituacao(sit: Record<string, unknown> | undefined): LiPaymentState {
   if (!sit) return 'unknown';
@@ -91,7 +105,7 @@ class RealLiClient implements LiClient {
           continue;
         }
         const awaiting = paymentStateFromSituacao(p['situacao'] as Record<string, unknown>) === 'awaiting_payment';
-        orders.push({ numero: String(p['numero']), awaiting, placedAt: p['data_criacao'] as string });
+        orders.push({ numero: String(p['numero']), awaiting, placedAt: liDateToISO(p['data_criacao'] as string) });
       }
       if (reachedOld) break;
     }
@@ -107,7 +121,7 @@ class RealLiClient implements LiClient {
       numero: String(p['numero']),
       paymentState: paymentStateFromSituacao(p['situacao'] as Record<string, unknown>),
       totalAmount: p['valor_total'] ? Number(p['valor_total']) : undefined,
-      placedAt: p['data_criacao'] as string,
+      placedAt: liDateToISO(p['data_criacao'] as string),
     }));
   }
 
@@ -158,7 +172,7 @@ class RealLiClient implements LiClient {
       customer,
       productSummary,
       totalAmount: raw['valor_total'] ? Number(raw['valor_total']) : undefined,
-      placedAt: (raw['data_criacao'] as string) ?? undefined,
+      placedAt: liDateToISO(raw['data_criacao'] as string),
     };
   }
 }
