@@ -127,6 +127,24 @@ export function dashboardHtml(): string {
   <p class="muted" style="margin-top:24px">Stats atualizam a cada 15s.
      <a href="#" onclick="loadAll();return false">Atualizar tudo agora</a></p>
 </div>
+
+<div id="aiModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;
+     align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:560px;width:100%">
+    <h3 style="margin:0 0 4px">🤖 Mensagem gerada</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:13px">Copie e cole no WhatsApp manualmente —
+       nada é enviado automaticamente.</p>
+    <div id="aiStatus" class="sub" style="min-height:18px;margin-bottom:8px"></div>
+    <textarea id="aiText" rows="7" style="width:100%;background:#0b1424;color:var(--txt);
+      border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button id="aiCopyBtn" onclick="aiCopy()">📋 Copiar</button>
+      <button id="aiWaBtn" class="ghost" onclick="aiWa()">💬 Abrir no WhatsApp</button>
+      <button id="aiAgainBtn" class="ghost" onclick="aiGenerate()">🔄 Gerar outra</button>
+      <button class="ghost" style="margin-left:auto" onclick="aiClose()">Fechar</button>
+    </div>
+  </div>
+</div>
 <script>
   var token = new URLSearchParams(location.search).get('token') || '';
   var cfg = {}; var evoOk = false; var importTimer = null; var statsTimer = null;
@@ -204,10 +222,15 @@ export function dashboardHtml(): string {
           '<td>'+money(o.totalAmount)+'</td>'+
           '<td><span class="pill s-'+esc(o.status)+'">'+esc(o.status)+'</span></td>'+
           '<td><span class="pill r-'+esc(o.recoveryStatus)+'">'+esc(o.recoveryStatus)+'</span></td>'+
-          '<td class="muted">'+dt(o.placedAt)+'</td></tr>'; }).join('');
+          '<td class="muted">'+dt(o.placedAt)+'</td>'+
+          '<td><button class="ghost" style="padding:4px 10px" data-id="'+esc(o.id)+'"'+
+            ' data-phone="'+esc(o.customerPhone||'')+'" onclick="genAi(this)"'+
+            (cfg.aiConfigured?'':' disabled')+
+            ' title="'+(cfg.aiConfigured?'Gerar mensagem com IA pra copiar e colar':'Defina MINIMAX_API_KEY pra habilitar')+
+            '">🤖</button></td></tr>'; }).join('');
         document.getElementById('ordersWrap').innerHTML =
           '<table><thead><tr><th><input type="checkbox" id="chkAll" onchange="toggleAll(this)"></th>'+
-          '<th>Pedido</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>Situação</th><th>Recuperação</th><th>Data</th>'+
+          '<th>Pedido</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>Situação</th><th>Recuperação</th><th>Data</th><th>IA</th>'+
           '</tr></thead><tbody>'+rows+'</tbody></table>';
         updateSelInfo();
       });
@@ -247,6 +270,53 @@ export function dashboardHtml(): string {
       }).catch(function(e){ showMsg(esc(e.message),'err'); })
       .then(function(){ updateSendBtn(); });
   }
+
+  // ── Geração de mensagem com IA (copiar/colar manual — sem envio) ──
+  var aiOrderId = null, aiPhone = '';
+  function genAi(btn){
+    aiOrderId = btn.getAttribute('data-id');
+    aiPhone = btn.getAttribute('data-phone') || '';
+    document.getElementById('aiModal').style.display = 'flex';
+    document.getElementById('aiText').value = '';
+    aiGenerate();
+  }
+  function aiSetBusy(b){
+    document.getElementById('aiCopyBtn').disabled = b;
+    document.getElementById('aiWaBtn').disabled = b || !aiPhone;
+    document.getElementById('aiAgainBtn').disabled = b;
+  }
+  function aiGenerate(){
+    if (!aiOrderId) return;
+    aiSetBusy(true);
+    document.getElementById('aiStatus').textContent = '⏳ Gerando mensagem...';
+    fetch(url('/api/orders/'+encodeURIComponent(aiOrderId)+'/ai-message'), { method:'POST' })
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(res){
+        if (!res.ok) throw new Error(res.j.error || 'Falha na geração');
+        document.getElementById('aiText').value = res.j.message;
+        document.getElementById('aiStatus').textContent =
+          '✅ Pronta' + (aiPhone ? ' · ' + aiPhone : ' · (pedido sem telefone)');
+      })
+      .catch(function(e){ document.getElementById('aiStatus').textContent = '❌ ' + e.message; })
+      .then(function(){ aiSetBusy(false); });
+  }
+  function aiCopy(){
+    var t = document.getElementById('aiText');
+    if (!t.value) return;
+    t.select(); t.setSelectionRange(0, 99999);
+    var done = function(){ document.getElementById('aiStatus').textContent = '📋 Copiada! Cole no WhatsApp.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t.value).then(done, function(){ document.execCommand('copy'); done(); });
+    } else { document.execCommand('copy'); done(); }
+  }
+  function aiWa(){
+    var t = document.getElementById('aiText').value;
+    var d = (aiPhone || '').replace(/\\D/g, '');
+    if (!d){ document.getElementById('aiStatus').textContent = '❌ Pedido sem telefone.'; return; }
+    if (d.length <= 11) d = '55' + d; // sem DDI → assume Brasil
+    window.open('https://wa.me/' + d + '?text=' + encodeURIComponent(t), '_blank');
+  }
+  function aiClose(){ document.getElementById('aiModal').style.display = 'none'; aiOrderId = null; }
 
   function startImport(){
     var year = Number(document.getElementById('year').value) || 2026;

@@ -4,7 +4,7 @@ import { env } from '../../config/env.js';
 import { prisma } from '../../lib/prisma.js';
 import { dashboardHtml } from './dashboard.page.js';
 import { startImport, getImportState, enqueueCampaign } from '../campaign/campaign.js';
-import { aiConfigured } from '../ai/minimax.js';
+import { aiConfigured, generateRecoveryMessage } from '../ai/minimax.js';
 
 /** Confere o token, se DASHBOARD_TOKEN estiver configurado. */
 function checkToken(req: FastifyRequest): boolean {
@@ -153,6 +153,33 @@ export async function dashboardRoutes(app: FastifyInstance) {
   app.get('/api/import/status', async (req, reply) => {
     if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
     return { state: getImportState() };
+  });
+
+  // Gera a mensagem com IA para UM pedido — só devolve o texto (copiar/colar manual).
+  // Não envia nada e não depende da Evolution: uso enquanto o número aquece.
+  app.post('/api/orders/:id/ai-message', async (req, reply) => {
+    if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
+    if (!aiConfigured())
+      return reply.status(400).send({ error: 'IA não configurada — defina MINIMAX_API_KEY.' });
+
+    const { id } = req.params as { id: string };
+    const order = await prisma.order.findUnique({ where: { id }, include: { store: true } });
+    if (!order) return reply.status(404).send({ error: 'pedido não encontrado' });
+
+    const message = await generateRecoveryMessage({
+      nome: order.customerName ?? undefined,
+      produto: order.productSummary ?? undefined,
+      valor: order.totalAmount ? Number(order.totalAmount) : undefined,
+      loja: order.store.name,
+      diasDesdePedido: order.placedAt
+        ? Math.max(0, Math.floor((Date.now() - order.placedAt.getTime()) / 86_400_000))
+        : undefined,
+      cancelado: order.status === 'CANCELED',
+    });
+    if (!message)
+      return reply.status(502).send({ error: 'A MiniMax falhou ao gerar — tente de novo.' });
+
+    return { ok: true, message, phone: order.customerPhone, customerName: order.customerName };
   });
 
   // Enfileira envio (com proteção anti-bloqueio). Bloqueia se a Evolution não estiver pronta.
