@@ -113,7 +113,9 @@ export function dashboardHtml(): string {
     <button class="ghost" onclick="loadOrders()">Atualizar</button>
     <div class="right toolbar">
       <span id="selInfo" class="sub"></span>
-      <button id="btnSend" onclick="sendSelected()" disabled>✉️ Enviar selecionados</button>
+      <button id="btnSend" onclick="sendSelected(false)" disabled>✉️ Enviar selecionados</button>
+      <button id="btnSendAi" onclick="sendSelected(true)" disabled
+        title="Cada cliente recebe uma mensagem única, gerada por IA na hora do envio">🤖 Enviar com IA</button>
     </div>
   </div>
   <div id="sendNote" class="note" style="margin-bottom:10px"></div>
@@ -163,7 +165,10 @@ export function dashboardHtml(): string {
       document.getElementById('sendNote').innerHTML =
         '🛡️ <b>Proteção anti-bloqueio:</b> 1 envio a cada ' + cfg.sendMinIntervalSeconds +
         's · teto de ' + cfg.sendDailyCap + ' msgs/dia.' +
-        (evoOk ? '' : ' <b style="color:#fca5a5">Evolution não configurada — envio desativado.</b>');
+        (evoOk ? '' : ' <b style="color:#fca5a5">Evolution não configurada — envio desativado.</b>') +
+        (cfg.aiConfigured
+          ? ' · 🤖 <b>IA ativa</b> (mensagem única por cliente).'
+          : ' · 🤖 IA desativada — defina <b>MINIMAX_API_KEY</b> pra habilitar.');
       renderMessages(d.recentMessages);
       updateSendBtn();
     });
@@ -215,16 +220,22 @@ export function dashboardHtml(): string {
   function updateSelInfo(){ var n=selectedIds().length;
     document.getElementById('selInfo').textContent = n? (n+' selecionado(s)') : ''; updateSendBtn(); }
   function updateSendBtn(){ var n=selectedIds().length;
-    document.getElementById('btnSend').disabled = !(evoOk && n>0); }
+    document.getElementById('btnSend').disabled = !(evoOk && n>0);
+    document.getElementById('btnSendAi').disabled = !(evoOk && cfg.aiConfigured && n>0); }
 
-  function sendSelected(){
+  function sendSelected(ai){
     var ids = selectedIds();
     if (!ids.length) return;
-    if (!confirm('Enviar mensagem para '+ids.length+' pedido(s)?\\nO ritmo é lento (anti-bloqueio): 1 a cada '+
+    var head = ai
+      ? 'Enviar mensagem GERADA POR IA (única pra cada cliente) para '+ids.length+' pedido(s)?\\n'+
+        'Objetivo: entender o que houve e por que não pagou.\\n'
+      : 'Enviar mensagem para '+ids.length+' pedido(s)?\\n';
+    if (!confirm(head+'O ritmo é lento (anti-bloqueio): 1 a cada '+
       cfg.sendMinIntervalSeconds+'s, teto '+cfg.sendDailyCap+'/dia.')) return;
     document.getElementById('btnSend').disabled = true;
+    document.getElementById('btnSendAi').disabled = true;
     fetch(url('/api/orders/send'), { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ orderIds: ids }) })
+      body: JSON.stringify({ orderIds: ids, ai: !!ai }) })
       .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(res){
         if (!res.ok){ showMsg(esc(res.j.error||'Falha no envio'),'err'); return; }

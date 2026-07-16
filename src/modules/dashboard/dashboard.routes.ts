@@ -4,6 +4,7 @@ import { env } from '../../config/env.js';
 import { prisma } from '../../lib/prisma.js';
 import { dashboardHtml } from './dashboard.page.js';
 import { startImport, getImportState, enqueueCampaign } from '../campaign/campaign.js';
+import { aiConfigured } from '../ai/minimax.js';
 
 /** Confere o token, se DASHBOARD_TOKEN estiver configurado. */
 function checkToken(req: FastifyRequest): boolean {
@@ -69,6 +70,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         minYear: env.RECOVERY_MIN_YEAR,
         sendMinIntervalSeconds: env.SEND_MIN_INTERVAL_SECONDS,
         sendDailyCap: env.SEND_DAILY_CAP,
+        aiConfigured: aiConfigured(),
       },
       stats: {
         totalOrders,
@@ -156,11 +158,18 @@ export async function dashboardRoutes(app: FastifyInstance) {
   // Enfileira envio (com proteção anti-bloqueio). Bloqueia se a Evolution não estiver pronta.
   app.post('/api/orders/send', async (req, reply) => {
     if (!checkToken(req)) return reply.status(401).send({ error: 'token inválido' });
-    const body = (req.body ?? {}) as { orderIds?: string[] };
+    const body = (req.body ?? {}) as { orderIds?: string[]; ai?: boolean };
     const ids = Array.isArray(body.orderIds) ? body.orderIds.filter((x) => typeof x === 'string') : [];
     if (!ids.length) return reply.status(400).send({ error: 'nenhum pedido selecionado' });
 
-    const result = await enqueueCampaign(ids);
+    const useAi = body.ai === true;
+    if (useAi && !aiConfigured()) {
+      return reply.status(400).send({
+        error: 'IA não configurada — defina MINIMAX_API_KEY para usar o envio com IA.',
+      });
+    }
+
+    const result = await enqueueCampaign(ids, useAi);
     if (!result.evolutionConfigured) {
       return reply.status(400).send({
         error: 'Evolution não configurada — configure EVOLUTION_* antes de enviar.',

@@ -19,6 +19,8 @@ export interface RecoveryJobData {
   // 'campaign' = disparo manual pelo painel (win-back): envia mesmo se cancelado.
   // (Pedido PAGO nunca recebe mensagem, em qualquer modo.)
   mode?: 'campaign';
+  // true = mensagem gerada por IA (MiniMax), única por cliente; false/ausente = template.
+  ai?: boolean;
 }
 
 export const recoveryQueue = new Queue<RecoveryJobData, void, string>(RECOVERY_QUEUE, { connection });

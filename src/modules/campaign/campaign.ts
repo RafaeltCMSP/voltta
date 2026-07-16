@@ -141,7 +141,7 @@ export interface EnqueueResult {
  * Enfileira o envio para os pedidos selecionados, respeitando o teto diário.
  * O ritmo (1 a cada SEND_MIN_INTERVAL_SECONDS) é garantido pelo limiter do worker.
  */
-export async function enqueueCampaign(orderIds: string[]): Promise<EnqueueResult> {
+export async function enqueueCampaign(orderIds: string[], ai = false): Promise<EnqueueResult> {
   const store = await prisma.store.findFirst({ orderBy: { createdAt: 'asc' } });
   const evolutionConfigured = Boolean(
     store?.evolutionBaseUrl && store?.evolutionApiKey && store?.evolutionInstance,
@@ -164,9 +164,9 @@ export async function enqueueCampaign(orderIds: string[]): Promise<EnqueueResult
   for (const orderId of toQueue) {
     await recoveryQueue.add(
       'recover',
-      { orderId, mode: 'campaign' },
+      { orderId, mode: 'campaign', ai },
       {
-        jobId: `campaign-${orderId}-${startOfDay.getTime()}`,
+        jobId: `campaign${ai ? '-ai' : ''}-${orderId}-${startOfDay.getTime()}`,
         delay: i * 1000, // pequeno escalonamento; o ritmo real é do limiter
         removeOnComplete: true,
         removeOnFail: 100,

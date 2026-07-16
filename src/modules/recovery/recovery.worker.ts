@@ -6,6 +6,7 @@ import { env } from '../../config/env.js';
 import { makeLiClient } from '../lojaintegrada/client.js';
 import { sendWhatsAppText } from '../evolution/client.js';
 import { renderTemplate } from './recovery.service.js';
+import { generateRecoveryMessage } from '../ai/minimax.js';
 
 /** Quantas mensagens já saíram com sucesso hoje (UTC) — teto anti-bloqueio. */
 async function sentToday(): Promise<number> {
@@ -87,12 +88,30 @@ export function startRecoveryWorker() {
       }
 
       // 2. Monta e envia a mensagem.
-      const body = renderTemplate(store.messageTemplate, {
+      const vars = {
         nome: fresh?.customer.name ?? order.customerName ?? undefined,
         produto: fresh?.productSummary ?? order.productSummary ?? undefined,
         valor: fresh?.totalAmount ?? (order.totalAmount ? Number(order.totalAmount) : undefined),
         loja: store.name,
-      });
+      };
+
+      // Modo IA: gera uma mensagem única por cliente (MiniMax) na hora do disparo.
+      // Se a IA falhar por qualquer motivo, cai no template — o envio nunca trava.
+      let body: string | null = null;
+      if (job.data.ai) {
+        const placedAt = fresh?.placedAt ?? order.placedAt?.toISOString();
+        body = await generateRecoveryMessage({
+          ...vars,
+          diasDesdePedido: placedAt
+            ? Math.max(0, Math.floor((Date.now() - new Date(placedAt).getTime()) / 86_400_000))
+            : undefined,
+          cancelado: (fresh?.paymentState ?? undefined) === 'canceled',
+        });
+        if (!body) {
+          logger.warn({ liOrderId: order.liOrderId }, 'IA falhou — usando template como fallback');
+        }
+      }
+      if (!body) body = renderTemplate(store.messageTemplate, vars);
 
       const result = await sendWhatsAppText(
         {

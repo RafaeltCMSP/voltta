@@ -30,6 +30,13 @@ const schema = z.object({
   // Teto de mensagens enviadas por dia (proteção contra ban por volume).
   SEND_DAILY_CAP: z.coerce.number().default(50),
 
+  // ───────── MiniMax (IA para mensagens personalizadas) ─────────
+  // Se MINIMAX_API_KEY estiver setada, o painel habilita o "Enviar com IA":
+  // cada cliente recebe uma mensagem única, gerada na hora do disparo.
+  MINIMAX_API_KEY: z.string().optional(),
+  MINIMAX_MODEL: z.string().default('MiniMax-M2'),
+  MINIMAX_BASE_URL: z.string().default('https://api.minimax.io/v1'),
+
   LI_USE_MOCK: z
     .enum(['true', 'false'])
     .default('true')

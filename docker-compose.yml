@@ -69,6 +69,10 @@ services:
       EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
       EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+      # MiniMax (IA — mensagens personalizadas). Só a chave é obrigatória p/ ativar.
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_MODEL: ${MINIMAX_MODEL:-MiniMax-M2}
+      MINIMAX_BASE_URL: ${MINIMAX_BASE_URL:-https://api.minimax.io/v1}
       # Painel web (token de acesso)
       DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:-}
       # Anti-bloqueio do WhatsApp
