@@ -22,6 +22,32 @@ function liDateToISO(s?: string): string | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
+/**
+ * Extrai a forma de pagamento do array `pagamentos` do detalhe do pedido.
+ * O payload varia (forma_pagamento embutida como objeto, ou campos soltos),
+ * então tentamos os nomes prováveis e juntamos formas distintas com vírgula.
+ */
+function paymentMethodFromPagamentos(raw: Record<string, unknown>): string | undefined {
+  const pagamentos = Array.isArray(raw['pagamentos'])
+    ? (raw['pagamentos'] as Record<string, unknown>[])
+    : [];
+  const names = new Set<string>();
+  for (const p of pagamentos) {
+    if (!p || typeof p !== 'object') continue;
+    let nome: unknown;
+    const fp = p['forma_pagamento'];
+    if (fp && typeof fp === 'object') {
+      const f = fp as Record<string, unknown>;
+      nome = f['nome'] ?? f['codigo'];
+    } else if (typeof fp === 'string' && !fp.startsWith('/')) {
+      nome = fp; // veio como texto direto (não resource_uri)
+    }
+    nome = nome ?? p['nome'] ?? p['forma'] ?? p['metodo'];
+    if (typeof nome === 'string' && nome.trim()) names.add(nome.trim());
+  }
+  return names.size ? [...names].join(', ') : undefined;
+}
+
 /** Deriva o estado de pagamento a partir do objeto `situacao` da LI. */
 function paymentStateFromSituacao(sit: Record<string, unknown> | undefined): LiPaymentState {
   if (!sit) return 'unknown';
@@ -175,6 +201,7 @@ class RealLiClient implements LiClient {
       customer,
       productSummary,
       productUrl,
+      paymentMethod: paymentMethodFromPagamentos(raw),
       totalAmount: raw['valor_total'] ? Number(raw['valor_total']) : undefined,
       placedAt: liDateToISO(raw['data_criacao'] as string),
     };
@@ -244,6 +271,7 @@ class MockLiClient implements LiClient {
       customer: { name: 'Cliente Teste', phone: '5511999999999', email: 'teste@exemplo.com' },
       productSummary: 'Produto Demo x1',
       productUrl: 'https://exemplo.com.br/produto-demo',
+      paymentMethod: 'Pix',
       totalAmount: 199.9,
       placedAt: new Date().toISOString(),
     };

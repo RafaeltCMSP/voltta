@@ -13,6 +13,7 @@ export interface LiOrder {
   };
   productSummary?: string; // ex: "Tênis Nike Air x1, Meia x2"
   productUrl?: string; // URL pública da página do 1º produto (p/ link de recompra)
+  paymentMethod?: string; // forma de pagamento escolhida (ex: "Pix", "Boleto")
   totalAmount?: number;
   placedAt?: string; // data de criação do pedido na LI (ISO) — usado p/ filtrar por ano
 }

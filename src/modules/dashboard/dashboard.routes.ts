@@ -134,6 +134,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
         customerPhone: o.customerPhone,
         customerEmail: o.customerEmail,
         productSummary: o.productSummary,
+        productUrl: o.productUrl,
+        paymentMethod: o.paymentMethod,
         totalAmount: o.totalAmount ? Number(o.totalAmount) : null,
         placedAt: o.placedAt ? o.placedAt.toISOString() : null,
       })),
@@ -176,6 +178,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         ? Math.max(0, Math.floor((Date.now() - order.placedAt.getTime()) / 86_400_000))
         : undefined,
       cancelado: order.status === 'CANCELED',
+      formaPagamento: order.paymentMethod ?? undefined,
       link,
     });
     if (!messages)

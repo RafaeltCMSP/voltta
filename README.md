@@ -106,7 +106,7 @@ Store (1) ──< Order (N) ──< RecoveryMessage (N)
 | Model | Papel | Campos-chave |
 |---|---|---|
 | **Store** | Um cliente do SaaS: chaves da LI, instância Evolution, template de mensagem, delay de recuperação e `lastSeenOrderNumber` (marcador do monitor). | `liApiKey`, `liApplicationKey`, `evolution*`, `messageTemplate`, `recoveryDelayMinutes`, `lastSeenOrderNumber` |
-| **Order** | Pedido capturado da LI + dados de contato p/ remarketing. Único por `(storeId, liOrderId)`. | `status`, `recoveryStatus`, `customerName/Phone/Email`, `productSummary`, `productUrl`, `totalAmount`, `placedAt` |
+| **Order** | Pedido capturado da LI + dados de contato p/ remarketing. Único por `(storeId, liOrderId)`. | `status`, `recoveryStatus`, `customerName/Phone/Email`, `productSummary`, `productUrl`, `paymentMethod`, `totalAmount`, `placedAt` |
 | **RecoveryMessage** | Log de cada tentativa de envio (corpo, sucesso, erro, quando). | `body`, `success`, `error`, `sentAt` |
 
 **Estados do pedido:**
@@ -165,7 +165,7 @@ Definido por loja (`Store.messageTemplate`, override via `STORE_MESSAGE_TEMPLATE
   3. convite leve para concluir + **link da página do produto** (exato, sem encurtar) — sem link disponível, convida a responder.
 - **Link do produto:** capturado da LI no detalhe do pedido (campo do item ou seguindo o resource do produto; link relativo é resolvido contra `STORE_URL`) e salvo em `Order.productUrl`. Fallback: `STORE_URL` (home da loja). Garantia dura no código: se há link e o modelo não o incluiu, ele é anexado à 3ª mensagem.
 - **Proibido no prompt:** inventar links/descontos/prazos, pressão, ameaça, "Prezado cliente", numeração "1/3".
-- **Contexto por pedido:** nome, produto, valor, dias desde o pedido, se está cancelado (win-back). `temperature: 1.0` → cada sequência sai diferente.
+- **Contexto por pedido:** nome, produto, valor, dias desde o pedido, **forma de pagamento** (a pergunta fica concreta: "o pix expirou?") e se está cancelado (win-back). `temperature: 1.0` → cada sequência sai diferente.
 - **Geração na hora do disparo** (não no clique de campanha): usa dados frescos; a sequência fica registrada em `RecoveryMessage.body`. No envio automático, os 3 balões saem com pausa de 2–5s entre eles (ritmo de digitação humana); se um falhar, interrompe e marca `FAILED`.
 - **Saída estruturada:** o modelo responde um array JSON de 3 strings; o parser tolera desvios (code fence, separadores) e, se nada aproveitável vier, retorna `null`.
 - **Robustez:** timeout (30s/60s), checagem do `base_resp` (a MiniMax retorna HTTP 200 com erro dentro do JSON), erro → `null` → **fallback para template** (no fluxo automático) ou erro claro no modal (no fluxo manual).
@@ -195,7 +195,7 @@ HTML/JS autocontido servido pelo próprio Fastify (`dashboard.page.ts`) — sem 
 - **Acesso:** `https://seu-dominio/dashboard?token=SEU_TOKEN` (token = `DASHBOARD_TOKEN`; sem env definida o painel fica aberto — use só em ambiente protegido). Token inválido → tela de login.
 - **Cards:** totais por situação e funil de recuperação (na fila / enviadas / pagou antes / falhas). Auto-refresh a cada 15s.
 - **Seção 1 — Analisar período:** informe o ano e importe todos os pedidos da LI (barra de progresso).
-- **Seção 2 — Pedidos & envio:** tabela com filtros por situação/recuperação, seleção em massa (pagos ficam bloqueados), botões **✉️ Enviar selecionados**, **🤖 Enviar com IA** e o botão **🤖 por linha** (gerar p/ copiar/colar).
+- **Seção 2 — Pedidos & envio:** tabela com filtros por situação/recuperação — o **nome do produto é link** para a página pública dele e há coluna de **forma de pagamento** —, seleção em massa (pagos ficam bloqueados), botões **✉️ Enviar selecionados**, **🤖 Enviar com IA** e o botão **🤖 por linha** (gerar p/ copiar/colar).
 - **Mensagens enviadas:** log das últimas 30 com status e erro.
 - Badges de estado: **MOCK/PRODUÇÃO**, Evolution ativa/pendente, IA ativa/desativada.
 

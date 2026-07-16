@@ -77,6 +77,7 @@ export function startRecoveryWorker() {
             customerPhone: fresh.customer.phone ?? order.customerPhone,
             customerEmail: fresh.customer.email ?? order.customerEmail,
             productUrl: fresh.productUrl ?? order.productUrl,
+            paymentMethod: fresh.paymentMethod ?? order.paymentMethod,
           },
         });
       }
@@ -107,6 +108,7 @@ export function startRecoveryWorker() {
             ? Math.max(0, Math.floor((Date.now() - new Date(placedAt).getTime()) / 86_400_000))
             : undefined,
           cancelado: (fresh?.paymentState ?? undefined) === 'canceled',
+          formaPagamento: fresh?.paymentMethod ?? order.paymentMethod ?? undefined,
           link: fresh?.productUrl ?? order.productUrl ?? env.STORE_URL,
         });
         if (!messages) {

@@ -101,6 +101,7 @@ async function runImport(year: number): Promise<void> {
         customerEmail: full?.customer.email ?? undefined,
         productSummary: full?.productSummary ?? undefined,
         productUrl: full?.productUrl ?? undefined,
+        paymentMethod: full?.paymentMethod ?? undefined,
       };
 
       await prisma.order.upsert({

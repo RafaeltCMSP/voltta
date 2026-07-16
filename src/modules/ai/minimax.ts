@@ -9,6 +9,8 @@ export interface AiMessageContext {
   loja: string;
   diasDesdePedido?: number;
   cancelado?: boolean;
+  /** Forma de pagamento escolhida (ex: "Pix") — deixa a pergunta mais certeira. */
+  formaPagamento?: string;
   /** URL pública da página do produto (vai OBRIGATORIAMENTE na última mensagem, se existir). */
   link?: string;
 }
@@ -26,7 +28,7 @@ Responda SOMENTE com um array JSON de EXATAMENTE 3 strings — ["mensagem 1","me
 
 ESTRUTURA FIXA das 3 mensagens:
 1. Saudação com o primeiro nome + apresentação DEIXANDO CLARO o nome da loja (ex.: "aqui é da <loja>"). Curta: 1 a 2 frases.
-2. Menção natural ao pedido/produto + UMA pergunta aberta pra entender o que houve com o pagamento. 1 a 2 frases.
+2. Menção natural ao pedido/produto + UMA pergunta aberta pra entender o que houve com o pagamento. Se a forma de pagamento for informada no contexto, use-a pra deixar a pergunta concreta (ex.: pix expirou? o boleto venceu? deu problema no cartão?). 1 a 2 frases.
 3. Convite leve, sem pressão, pra concluir a compra se fizer sentido — e inclua o LINK DO PRODUTO exatamente como fornecido no contexto (não altere, não encurte). Se NENHUM link for fornecido, convide a pessoa a responder a mensagem, sem inventar link.
 
 REGRAS:
@@ -46,6 +48,7 @@ function buildUserPrompt(ctx: AiMessageContext): string {
       `Valor: ${ctx.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
     );
   if (ctx.diasDesdePedido != null) partes.push(`Dias desde o pedido: ${ctx.diasDesdePedido}`);
+  if (ctx.formaPagamento) partes.push(`Forma de pagamento escolhida: ${ctx.formaPagamento}`);
   if (ctx.cancelado) partes.push('Observação: o pedido consta como cancelado (abordagem de win-back).');
   partes.push(ctx.link ? `Link do produto (use na mensagem 3): ${ctx.link}` : 'Sem link disponível.');
   partes.push('Gere o array JSON com as 3 mensagens agora.');

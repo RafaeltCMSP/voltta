@@ -79,6 +79,8 @@ model Order {
   productSummary String?
   // URL pública da página do 1º produto do pedido (p/ o cliente recomprar com 1 clique)
   productUrl     String?
+  // Forma de pagamento escolhida (ex: "Pix", "Boleto", "Cartão de Crédito")
+  paymentMethod  String?
   totalAmount    Decimal? @db.Decimal(12, 2)
 
   messages  RecoveryMessage[]

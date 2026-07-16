@@ -218,7 +218,10 @@ export function dashboardHtml(): string {
             (o.status==='PAID'?' disabled title="já pago"':'')+' onchange="updateSelInfo()"></td>'+
           '<td>#'+esc(o.liOrderId)+'</td>'+
           '<td>'+esc(o.customerName||'—')+'<div class="muted">'+esc(o.customerPhone||'(sem telefone)')+'</div></td>'+
-          '<td>'+esc(o.productSummary||'—')+'</td>'+
+          '<td>'+(o.productUrl
+            ? '<a href="'+esc(o.productUrl)+'" target="_blank" rel="noopener" title="Abrir página do produto">'+esc(o.productSummary||'ver produto')+'</a>'
+            : esc(o.productSummary||'—'))+'</td>'+
+          '<td>'+esc(o.paymentMethod||'—')+'</td>'+
           '<td>'+money(o.totalAmount)+'</td>'+
           '<td><span class="pill s-'+esc(o.status)+'">'+esc(o.status)+'</span></td>'+
           '<td><span class="pill r-'+esc(o.recoveryStatus)+'">'+esc(o.recoveryStatus)+'</span></td>'+
@@ -230,7 +233,7 @@ export function dashboardHtml(): string {
             '">🤖</button></td></tr>'; }).join('');
         document.getElementById('ordersWrap').innerHTML =
           '<table><thead><tr><th><input type="checkbox" id="chkAll" onchange="toggleAll(this)"></th>'+
-          '<th>Pedido</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>Situação</th><th>Recuperação</th><th>Data</th><th>IA</th>'+
+          '<th>Pedido</th><th>Cliente</th><th>Produto</th><th>Pagamento</th><th>Valor</th><th>Situação</th><th>Recuperação</th><th>Data</th><th>IA</th>'+
           '</tr></thead><tbody>'+rows+'</tbody></table>';
         updateSelInfo();
       });
