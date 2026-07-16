@@ -166,14 +166,58 @@ class RealLiClient implements LiClient {
           .join(', ')
       : undefined;
 
+    const firstItem = itens[0];
+    const productUrl = firstItem ? await this.resolveProductUrl(firstItem, liOrderId) : undefined;
+
     return {
       liOrderId,
       paymentState,
       customer,
       productSummary,
+      productUrl,
       totalAmount: raw['valor_total'] ? Number(raw['valor_total']) : undefined,
       placedAt: liDateToISO(raw['data_criacao'] as string),
     };
+  }
+
+  /**
+   * Descobre a URL pública da página do produto do item.
+   * Tenta campos diretos do item; senão segue o resource_uri do produto e procura
+   * a URL lá. Links relativos são resolvidos contra STORE_URL (domínio da loja).
+   */
+  private async resolveProductUrl(
+    item: Record<string, unknown>,
+    liOrderId: string,
+  ): Promise<string | undefined> {
+    const pick = (obj: Record<string, unknown> | null | undefined, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+      return undefined;
+    };
+
+    let url = pick(item, ['url', 'url_produto', 'produto_url', 'link']);
+    if (!url && typeof item['produto'] === 'string') {
+      try {
+        const produto = await this.get(item['produto']);
+        url = pick(produto, ['url', 'link', 'url_completa']);
+      } catch (err) {
+        logger.warn({ err, liOrderId }, 'Não foi possível resolver o produto do pedido');
+      }
+    }
+    if (!url) return undefined;
+    if (/^https?:\/\//i.test(url)) return url;
+    // Relativo (ex: "/produto/tenis-x") → precisa do domínio da loja p/ virar link clicável.
+    if (env.STORE_URL) {
+      try {
+        return new URL(url, env.STORE_URL).href;
+      } catch {
+        return undefined;
+      }
+    }
+    logger.warn({ liOrderId, url }, 'URL de produto relativa e STORE_URL ausente — link descartado');
+    return undefined;
   }
 }
 
@@ -199,6 +243,7 @@ class MockLiClient implements LiClient {
       paymentState,
       customer: { name: 'Cliente Teste', phone: '5511999999999', email: 'teste@exemplo.com' },
       productSummary: 'Produto Demo x1',
+      productUrl: 'https://exemplo.com.br/produto-demo',
       totalAmount: 199.9,
       placedAt: new Date().toISOString(),
     };

@@ -131,15 +131,15 @@ export function dashboardHtml(): string {
 <div id="aiModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;
      align-items:center;justify-content:center;padding:16px">
   <div class="card" style="max-width:560px;width:100%">
-    <h3 style="margin:0 0 4px">🤖 Mensagem gerada</h3>
-    <p class="muted" style="margin:0 0 10px;font-size:13px">Copie e cole no WhatsApp manualmente —
+    <h3 style="margin:0 0 4px">🤖 Sequência gerada (3 mensagens)</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:13px">Cole no WhatsApp uma por vez, na ordem —
        nada é enviado automaticamente.</p>
     <div id="aiStatus" class="sub" style="min-height:18px;margin-bottom:8px"></div>
-    <textarea id="aiText" rows="7" style="width:100%;background:#0b1424;color:var(--txt);
-      border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;resize:vertical"></textarea>
+    <div id="aiBlocks" style="display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow-y:auto"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <button id="aiCopyBtn" onclick="aiCopy()">📋 Copiar</button>
-      <button id="aiWaBtn" class="ghost" onclick="aiWa()">💬 Abrir no WhatsApp</button>
+      <button id="aiCopyBtn" onclick="aiCopyAll()">📋 Copiar tudo</button>
+      <button id="aiWaBtn" class="ghost" onclick="aiWa()"
+        title="Abre o chat com a 1ª mensagem preenchida; depois cole a 2ª e a 3ª">💬 Abrir no WhatsApp</button>
       <button id="aiAgainBtn" class="ghost" onclick="aiGenerate()">🔄 Gerar outra</button>
       <button class="ghost" style="margin-left:auto" onclick="aiClose()">Fechar</button>
     </div>
@@ -271,50 +271,85 @@ export function dashboardHtml(): string {
       .then(function(){ updateSendBtn(); });
   }
 
-  // ── Geração de mensagem com IA (copiar/colar manual — sem envio) ──
-  var aiOrderId = null, aiPhone = '';
+  // ── Geração de sequência com IA (copiar/colar manual — sem envio) ──
+  var aiOrderId = null, aiPhone = '', aiMessages = [];
   function genAi(btn){
     aiOrderId = btn.getAttribute('data-id');
     aiPhone = btn.getAttribute('data-phone') || '';
+    aiMessages = [];
     document.getElementById('aiModal').style.display = 'flex';
-    document.getElementById('aiText').value = '';
+    document.getElementById('aiBlocks').innerHTML = '';
     aiGenerate();
   }
   function aiSetBusy(b){
-    document.getElementById('aiCopyBtn').disabled = b;
-    document.getElementById('aiWaBtn').disabled = b || !aiPhone;
+    document.getElementById('aiCopyBtn').disabled = b || !aiMessages.length;
+    document.getElementById('aiWaBtn').disabled = b || !aiPhone || !aiMessages.length;
     document.getElementById('aiAgainBtn').disabled = b;
+  }
+  function aiRenderBlocks(){
+    var box = document.getElementById('aiBlocks');
+    box.innerHTML = '';
+    aiMessages.forEach(function(msg, i){
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'border:1px solid var(--line);border-radius:10px;padding:10px;background:#0b1424';
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+      var lbl = document.createElement('span');
+      lbl.className = 'sub'; lbl.textContent = 'Mensagem ' + (i+1) + ' de ' + aiMessages.length;
+      var btn = document.createElement('button');
+      btn.className = 'ghost'; btn.style.cssText = 'margin-left:auto;padding:4px 10px';
+      btn.textContent = '📋 Copiar ' + (i+1);
+      btn.onclick = function(){ aiCopyText(aiMessages[i], 'Mensagem ' + (i+1) + ' copiada! Cole no WhatsApp.'); };
+      head.appendChild(lbl); head.appendChild(btn);
+      var ta = document.createElement('textarea');
+      ta.rows = 3; ta.value = msg;
+      ta.style.cssText = 'width:100%;background:transparent;color:var(--txt);border:none;'+
+        'padding:0;font:inherit;resize:vertical;outline:none';
+      ta.oninput = function(){ aiMessages[i] = ta.value; };
+      wrap.appendChild(head); wrap.appendChild(ta);
+      box.appendChild(wrap);
+    });
   }
   function aiGenerate(){
     if (!aiOrderId) return;
     aiSetBusy(true);
-    document.getElementById('aiStatus').textContent = '⏳ Gerando mensagem...';
+    document.getElementById('aiStatus').textContent = '⏳ Gerando sequência...';
     fetch(url('/api/orders/'+encodeURIComponent(aiOrderId)+'/ai-message'), { method:'POST' })
       .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(res){
         if (!res.ok) throw new Error(res.j.error || 'Falha na geração');
-        document.getElementById('aiText').value = res.j.message;
+        aiMessages = res.j.messages || [];
+        aiRenderBlocks();
         document.getElementById('aiStatus').textContent =
-          '✅ Pronta' + (aiPhone ? ' · ' + aiPhone : ' · (pedido sem telefone)');
+          '✅ Pronta' + (aiPhone ? ' · ' + aiPhone : ' · (pedido sem telefone)') +
+          (res.j.link ? '' : ' · ⚠️ sem link de produto (configure STORE_URL ou reimporte o pedido)');
       })
       .catch(function(e){ document.getElementById('aiStatus').textContent = '❌ ' + e.message; })
       .then(function(){ aiSetBusy(false); });
   }
-  function aiCopy(){
-    var t = document.getElementById('aiText');
-    if (!t.value) return;
-    t.select(); t.setSelectionRange(0, 99999);
-    var done = function(){ document.getElementById('aiStatus').textContent = '📋 Copiada! Cole no WhatsApp.'; };
+  function aiCopyText(text, okMsg){
+    if (!text) return;
+    var done = function(){ document.getElementById('aiStatus').textContent = '📋 ' + okMsg; };
+    var legacy = function(){
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta); done();
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(t.value).then(done, function(){ document.execCommand('copy'); done(); });
-    } else { document.execCommand('copy'); done(); }
+      navigator.clipboard.writeText(text).then(done, legacy);
+    } else { legacy(); }
+  }
+  function aiCopyAll(){
+    aiCopyText(aiMessages.join('\\n\\n'), 'Sequência inteira copiada!');
   }
   function aiWa(){
-    var t = document.getElementById('aiText').value;
+    if (!aiMessages.length) return;
     var d = (aiPhone || '').replace(/\\D/g, '');
     if (!d){ document.getElementById('aiStatus').textContent = '❌ Pedido sem telefone.'; return; }
     if (d.length <= 11) d = '55' + d; // sem DDI → assume Brasil
-    window.open('https://wa.me/' + d + '?text=' + encodeURIComponent(t), '_blank');
+    window.open('https://wa.me/' + d + '?text=' + encodeURIComponent(aiMessages[0]), '_blank');
+    document.getElementById('aiStatus').textContent =
+      '💬 Chat aberto com a 1ª mensagem — envie e cole a 2ª e a 3ª na sequência.';
   }
   function aiClose(){ document.getElementById('aiModal').style.display = 'none'; aiOrderId = null; }
 

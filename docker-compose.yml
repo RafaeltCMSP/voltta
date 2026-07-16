@@ -62,6 +62,7 @@ services:
       # Loja padrão (preencha as chaves) ↓
       STORE_ID: ${STORE_ID:-principal}
       STORE_NAME: ${STORE_NAME:-Minha Loja}
+      STORE_URL: ${STORE_URL:-}
       LI_API_KEY: ${LI_API_KEY:-}
       LI_APPLICATION_KEY: ${LI_APPLICATION_KEY:-}
       STORE_MESSAGE_TEMPLATE: ${STORE_MESSAGE_TEMPLATE:-}

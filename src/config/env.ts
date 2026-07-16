@@ -49,6 +49,10 @@ const schema = z.object({
   // esta loja sozinho no boot (bootstrapStoreFromEnv). Ideal p/ deploy single-loja.
   STORE_ID: z.string().default('principal'),
   STORE_NAME: z.string().default('Minha Loja'),
+  // URL pública da loja (ex: https://www.megatumii.com.br). Usos: base p/ resolver
+  // links relativos de produto da LI e fallback do link nas mensagens de IA.
+  // Vazio (padrão do compose) = ausente — não pode quebrar a validação de URL.
+  STORE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   STORE_MESSAGE_TEMPLATE: z.string().optional(),
   LI_API_KEY: z.string().optional(), // "Chave de API" da loja
   LI_APPLICATION_KEY: z.string().optional(), // "Chave de Aplicação" do integrador

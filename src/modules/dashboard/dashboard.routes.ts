@@ -4,7 +4,7 @@ import { env } from '../../config/env.js';
 import { prisma } from '../../lib/prisma.js';
 import { dashboardHtml } from './dashboard.page.js';
 import { startImport, getImportState, enqueueCampaign } from '../campaign/campaign.js';
-import { aiConfigured, generateRecoveryMessage } from '../ai/minimax.js';
+import { aiConfigured, generateRecoveryMessages } from '../ai/minimax.js';
 
 /** Confere o token, se DASHBOARD_TOKEN estiver configurado. */
 function checkToken(req: FastifyRequest): boolean {
@@ -166,7 +166,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const order = await prisma.order.findUnique({ where: { id }, include: { store: true } });
     if (!order) return reply.status(404).send({ error: 'pedido não encontrado' });
 
-    const message = await generateRecoveryMessage({
+    const link = order.productUrl ?? env.STORE_URL;
+    const messages = await generateRecoveryMessages({
       nome: order.customerName ?? undefined,
       produto: order.productSummary ?? undefined,
       valor: order.totalAmount ? Number(order.totalAmount) : undefined,
@@ -175,11 +176,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
         ? Math.max(0, Math.floor((Date.now() - order.placedAt.getTime()) / 86_400_000))
         : undefined,
       cancelado: order.status === 'CANCELED',
+      link,
     });
-    if (!message)
+    if (!messages)
       return reply.status(502).send({ error: 'A MiniMax falhou ao gerar — tente de novo.' });
 
-    return { ok: true, message, phone: order.customerPhone, customerName: order.customerName };
+    return { ok: true, messages, link, phone: order.customerPhone, customerName: order.customerName };
   });
 
   // Enfileira envio (com proteção anti-bloqueio). Bloqueia se a Evolution não estiver pronta.

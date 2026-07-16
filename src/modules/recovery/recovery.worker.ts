@@ -6,7 +6,7 @@ import { env } from '../../config/env.js';
 import { makeLiClient } from '../lojaintegrada/client.js';
 import { sendWhatsAppText } from '../evolution/client.js';
 import { renderTemplate } from './recovery.service.js';
-import { generateRecoveryMessage } from '../ai/minimax.js';
+import { generateRecoveryMessages } from '../ai/minimax.js';
 
 /** Quantas mensagens já saíram com sucesso hoje (UTC) — teto anti-bloqueio. */
 async function sentToday(): Promise<number> {
@@ -76,6 +76,7 @@ export function startRecoveryWorker() {
             customerName: fresh.customer.name ?? order.customerName,
             customerPhone: fresh.customer.phone ?? order.customerPhone,
             customerEmail: fresh.customer.email ?? order.customerEmail,
+            productUrl: fresh.productUrl ?? order.productUrl,
           },
         });
       }
@@ -95,41 +96,59 @@ export function startRecoveryWorker() {
         loja: store.name,
       };
 
-      // Modo IA: gera uma mensagem única por cliente (MiniMax) na hora do disparo.
+      // Modo IA: gera a sequência (3 balões) única por cliente na hora do disparo.
       // Se a IA falhar por qualquer motivo, cai no template — o envio nunca trava.
-      let body: string | null = null;
+      let messages: string[] | null = null;
       if (job.data.ai) {
         const placedAt = fresh?.placedAt ?? order.placedAt?.toISOString();
-        body = await generateRecoveryMessage({
+        messages = await generateRecoveryMessages({
           ...vars,
           diasDesdePedido: placedAt
             ? Math.max(0, Math.floor((Date.now() - new Date(placedAt).getTime()) / 86_400_000))
             : undefined,
           cancelado: (fresh?.paymentState ?? undefined) === 'canceled',
+          link: fresh?.productUrl ?? order.productUrl ?? env.STORE_URL,
         });
-        if (!body) {
+        if (!messages) {
           logger.warn({ liOrderId: order.liOrderId }, 'IA falhou — usando template como fallback');
         }
       }
-      if (!body) body = renderTemplate(store.messageTemplate, vars);
+      if (!messages) messages = [renderTemplate(store.messageTemplate, vars)];
 
-      const result = await sendWhatsAppText(
-        {
-          baseUrl: store.evolutionBaseUrl,
-          apiKey: store.evolutionApiKey,
-          instance: store.evolutionInstance,
-        },
-        phone,
-        body,
-      );
+      // Envia os balões em sequência, com pausa curta entre eles (parece digitação
+      // humana). Se um falhar, interrompe — não deixa a conversa pela metade.
+      const evo = {
+        baseUrl: store.evolutionBaseUrl,
+        apiKey: store.evolutionApiKey,
+        instance: store.evolutionInstance,
+      };
+      let sent = 0;
+      let error: string | undefined;
+      for (const msg of messages) {
+        if (sent > 0) {
+          await new Promise((r) => setTimeout(r, 2000 + Math.floor(Math.random() * 3000)));
+        }
+        const result = await sendWhatsAppText(evo, phone, msg);
+        if (!result.success) {
+          error = result.error;
+          break;
+        }
+        sent++;
+      }
+      const success = sent === messages.length;
 
       // 3. Registra.
       await prisma.recoveryMessage.create({
-        data: { orderId: order.id, body, success: result.success, error: result.error },
+        data: {
+          orderId: order.id,
+          body: messages.join('\n\n'),
+          success,
+          error: error ? `${error} (enviadas ${sent}/${messages.length})` : undefined,
+        },
       });
       await prisma.order.update({
         where: { id: order.id },
-        data: { recoveryStatus: result.success ? 'SENT' : 'FAILED' },
+        data: { recoveryStatus: success ? 'SENT' : 'FAILED' },
       });
     },
     {
